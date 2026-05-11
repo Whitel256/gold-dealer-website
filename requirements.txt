@@ -1,3 +1,3 @@
--e flask
+flask
 mysql-connector-python
 gunicorn
