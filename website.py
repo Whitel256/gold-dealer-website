@@ -335,5 +335,17 @@ def schedule():
     <div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Phone</th><th>Next Due</th><th>Days Left</th><th>Notes</th></tr>{trs}</table></div></div></div>"""
     return render("schedule", html)
 
+
+@app.route("/debug")
+def debug():
+    try:
+        rows = query("SELECT username, LEFT(password,10) as pw_start FROM users LIMIT 5")
+        info = f"Users found: {len(rows)}<br>" + "<br>".join(f"{r['username']}: {r['pw_start']}..." for r in rows)
+    except Exception as e:
+        info = f"DB Error: {e}"
+    env_host = os.environ.get("MYSQLHOST","NOT SET")
+    env_db = os.environ.get("MYSQLDATABASE","NOT SET")
+    return f"<pre>HOST: {env_host}\nDB: {env_db}\n\n{info}</pre>"
+
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5050)), debug=False)
