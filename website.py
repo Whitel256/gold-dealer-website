@@ -2,7 +2,7 @@
 Gold Dealer - Read Only Public Website
 Deploy on Railway
 """
-from flask import Flask, render_template_string, request, redirect, session, Response
+from flask import Flask, request, redirect, session, Response
 import os, mysql.connector
 from datetime import date
 
@@ -88,28 +88,25 @@ color:#000;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:p
 .err{color:var(--red);font-size:13px;text-align:center;margin-top:8px}
 .sync{font-size:11px;color:var(--muted);text-align:right;padding:4px 16px}
 </style></head><body>
-{% if user %}
-<div class="topbar">
-  <div><h1>✦ GOLD DEALER SYSTEM</h1><div class="sub">{{user.upper()}} &nbsp;|&nbsp; Read Only View</div></div>
-  <form method="post" action="/logout"><button class="logout">Logout</button></form>
-</div>
-<nav class="nav">
-  <a href="/dashboard" class="{{'active' if page=='dashboard' else ''}}">📊 Dashboard</a>
-  <a href="/balance" class="{{'active' if page=='balance' else ''}}">⚖ Balance</a>
-  <a href="/ledger" class="{{'active' if page=='ledger' else ''}}">📋 Ledger</a>
-  <a href="/receipts" class="{{'active' if page=='receipts' else ''}}">⬇ Receipts</a>
-  <a href="/issues" class="{{'active' if page=='issues' else ''}}">⬆ Issues</a>
-  <a href="/dealers" class="{{'active' if page=='dealers' else ''}}">🏪 Dealers</a>
-  <a href="/products" class="{{'active' if page=='products' else ''}}">📦 Products</a>
-  <a href="/schedule" class="{{'active' if page=='schedule' else ''}}">🔔 Schedule</a>
-</nav>
-{% endif %}
-{{content}}
+%%TOPBAR%%
+%%CONTENT%%
 </body></html>"""
 
 def render(page, content, user=None):
-    html = render_template_string(BASE, page=page, content=content, user=user or session.get("user",""))
-    return Response(html, mimetype="text/html")
+    u = user if user is not None else session.get("user","")
+    # Build nav active states
+    pages = ["dashboard","balance","ledger","receipts","issues","dealers","products","schedule"]
+    nav_icons = {"dashboard":"📊 Dashboard","balance":"⚖ Balance","ledger":"📋 Ledger",
+                 "receipts":"⬇ Receipts","issues":"⬆ Issues","dealers":"🏪 Dealers",
+                 "products":"📦 Products","schedule":"🔔 Schedule"}
+    nav_html = ""
+    if u:
+        nav_links = "".join(f'<a href="/{p}" class={"active" if p==page else ""}>{nav_icons[p]}</a>' for p in pages)
+        topbar = f'''<div class="topbar"><div><h1>✦ GOLD DEALER SYSTEM</h1><div class="sub">{u.upper()} &nbsp;|&nbsp; Read Only View</div></div><form method="post" action="/logout"><button class="logout">Logout</button></form></div><nav class="nav">{nav_links}</nav>'''
+    else:
+        topbar = ""
+    full_html = BASE.replace("%%TOPBAR%%", topbar).replace("%%CONTENT%%", content)
+    return Response(full_html, mimetype="text/html; charset=utf-8")
 
 def login_req(f):
     from functools import wraps
