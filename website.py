@@ -271,7 +271,7 @@ def receipts():
     trs=""
     for r in rows:
         canc="canc" if r["cancelled"] else ""
-        trs+=f"<tr class='{canc}'><td><a href='/bill?bill_no={r[\"bill_no\"]}&type=Receipt'>{r['bill_no']}</a></td><td>{r['bill_date']}</td><td>{r['dealer_name']}</td><td>{r['items']}</td><td>{r['total_pure']:.3f}</td><td>{'Cancelled' if r['cancelled'] else 'Active'}</td></tr>"
+        trs+=f"<tr class='{canc}'><td><a href='/bill?bill_no={r['bill_no']}&type=Receipt'>{r['bill_no']}</a></td><td>{r['bill_date']}</td><td>{r['dealer_name']}</td><td>{r['items']}</td><td>{r['total_pure']:.3f}</td><td>{'Cancelled' if r['cancelled'] else 'Active'}</td></tr>"
     html=f"""<div class="wrap"><div class="card"><div class="card-head">⬇ Recent Receipts</div>
     <div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Dealer</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{trs}</table></div></div></div>"""
     return render("receipts", html)
@@ -285,7 +285,7 @@ def issues():
     trs=""
     for r in rows:
         canc="canc" if r["cancelled"] else ""
-        trs+=f"<tr class='{canc}'><td><a href='/bill?bill_no={r[\"bill_no\"]}&type=Issue'>{r['bill_no']}</a></td><td>{r['bill_date']}</td><td>{r['dealer_name']}</td><td>{r['items']}</td><td>{r['total_pure']:.3f}</td><td>{'Cancelled' if r['cancelled'] else 'Active'}</td></tr>"
+        trs+=f"<tr class='{canc}'><td><a href='/bill?bill_no={r['bill_no']}&type=Issue'>{r['bill_no']}</a></td><td>{r['bill_date']}</td><td>{r['dealer_name']}</td><td>{r['items']}</td><td>{r['total_pure']:.3f}</td><td>{'Cancelled' if r['cancelled'] else 'Active'}</td></tr>"
     html=f"""<div class="wrap"><div class="card"><div class="card-head">⬆ Recent Issues</div>
     <div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Dealer</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{trs}</table></div></div></div>"""
     return render("issues", html)
