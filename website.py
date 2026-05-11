@@ -19,6 +19,97 @@ def get_cloud_db():
         charset="utf8mb4"
     )
 
+def init_db():
+    try:
+        conn = get_cloud_db(); c = conn.cursor()
+        tables = [
+            """CREATE TABLE IF NOT EXISTS users (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(50) NOT NULL DEFAULT 'staff',
+                created_at DATETIME DEFAULT NOW())""",
+            """CREATE TABLE IF NOT EXISTS products (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                product_code VARCHAR(50) UNIQUE NOT NULL,
+                product_name VARCHAR(200) NOT NULL,
+                metal VARCHAR(50) NOT NULL,
+                category VARCHAR(50) NOT NULL DEFAULT 'Ornament',
+                default_touch DOUBLE DEFAULT 0,
+                active INT DEFAULT 1,
+                created_at DATETIME DEFAULT NOW())""",
+            """CREATE TABLE IF NOT EXISTS dealers (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                dealer_code VARCHAR(50) UNIQUE NOT NULL,
+                dealer_name VARCHAR(200) NOT NULL,
+                phone VARCHAR(50), address TEXT,
+                active INT DEFAULT 1,
+                created_at DATETIME DEFAULT NOW())""",
+            """CREATE TABLE IF NOT EXISTS dealer_product_touch (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                dealer_id INT NOT NULL, product_id INT NOT NULL,
+                touch DOUBLE NOT NULL DEFAULT 0,
+                UNIQUE(dealer_id, product_id),
+                FOREIGN KEY(dealer_id) REFERENCES dealers(id),
+                FOREIGN KEY(product_id) REFERENCES products(id))""",
+            """CREATE TABLE IF NOT EXISTS receipts (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                bill_no VARCHAR(50) NOT NULL, bill_date VARCHAR(20) NOT NULL,
+                dealer_id INT NOT NULL, product_id INT NOT NULL,
+                gross_wt DOUBLE NOT NULL DEFAULT 0, stone_wt DOUBLE NOT NULL DEFAULT 0,
+                net_wt DOUBLE NOT NULL DEFAULT 0, touch DOUBLE NOT NULL DEFAULT 0,
+                pure_wt DOUBLE NOT NULL DEFAULT 0,
+                stone_amt DOUBLE DEFAULT 0, hallmark_amt DOUBLE DEFAULT 0,
+                making_amt DOUBLE DEFAULT 0, other_amt DOUBLE DEFAULT 0,
+                cancelled INT DEFAULT 0, cancel_reason TEXT, remarks TEXT,
+                created_by VARCHAR(100), created_at DATETIME DEFAULT NOW(),
+                FOREIGN KEY(dealer_id) REFERENCES dealers(id),
+                FOREIGN KEY(product_id) REFERENCES products(id))""",
+            """CREATE TABLE IF NOT EXISTS issues (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                bill_no VARCHAR(50) NOT NULL, bill_date VARCHAR(20) NOT NULL,
+                dealer_id INT NOT NULL, product_id INT NOT NULL,
+                issue_type VARCHAR(50) NOT NULL DEFAULT 'Metal',
+                gross_wt DOUBLE DEFAULT 0, stone_wt DOUBLE DEFAULT 0,
+                net_wt DOUBLE NOT NULL DEFAULT 0, touch DOUBLE NOT NULL DEFAULT 0,
+                pure_wt DOUBLE NOT NULL DEFAULT 0,
+                stone_amt DOUBLE DEFAULT 0, hallmark_amt DOUBLE DEFAULT 0,
+                making_amt DOUBLE DEFAULT 0, other_amt DOUBLE DEFAULT 0,
+                cancelled INT DEFAULT 0, cancel_reason TEXT, remarks TEXT,
+                created_by VARCHAR(100), created_at DATETIME DEFAULT NOW(),
+                FOREIGN KEY(dealer_id) REFERENCES dealers(id),
+                FOREIGN KEY(product_id) REFERENCES products(id))""",
+            """CREATE TABLE IF NOT EXISTS audit_log (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                username VARCHAR(100), action VARCHAR(200), details TEXT,
+                created_at DATETIME DEFAULT NOW())""",
+            """CREATE TABLE IF NOT EXISTS dealer_payment_schedule (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                dealer_id INT NOT NULL, schedule_type VARCHAR(50) DEFAULT 'Monthly',
+                days_interval INT DEFAULT 30,
+                next_due_date VARCHAR(20) DEFAULT NULL, notes TEXT,
+                FOREIGN KEY(dealer_id) REFERENCES dealers(id))""",
+            """CREATE TABLE IF NOT EXISTS dealer_payments (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                dealer_id INT NOT NULL, payment_date VARCHAR(20) NOT NULL,
+                amount_pure DOUBLE NOT NULL DEFAULT 0,
+                metal VARCHAR(50) NOT NULL DEFAULT 'Gold',
+                remarks TEXT, created_by VARCHAR(100),
+                created_at DATETIME DEFAULT NOW(),
+                FOREIGN KEY(dealer_id) REFERENCES dealers(id))""",
+            """CREATE TABLE IF NOT EXISTS last_sync (
+                id INT PRIMARY KEY DEFAULT 1,
+                synced_at DATETIME DEFAULT NOW())""",
+        ]
+        for sql in tables: c.execute(sql)
+        import hashlib
+        hp = hashlib.sha256("admin123".encode()).hexdigest()
+        c.execute("INSERT IGNORE INTO users (username,password,role) VALUES (%s,%s,%s)", ("admin", hp, "admin"))
+        conn.commit(); conn.close()
+        print("DB initialized OK")
+    except Exception as e:
+        print(f"init_db error: {e}")
+
 class Row(dict):
     def __getitem__(self,k):
         if isinstance(k,int): return list(self.values())[k]
@@ -70,7 +161,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 th{background:#1a1a1a;color:var(--gold);padding:9px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid #333}
 td{padding:8px 12px;border-bottom:1px solid #1a1a1a;vertical-align:middle}
 tr:last-child td{border-bottom:none}
-.badge{display:inline-block;padding:3px 9px;border-radius=10px;font-size:11px;font-weight:600;border-radius:8px}
+.badge{display:inline-block;padding:3px 9px;border-radius:8px;font-size:11px;font-weight:600}
 .bg{background:rgba(39,174,96,.15);color:var(--green)}
 .br{background:rgba(231,76,60,.15);color:var(--red)}
 .bgold{background:rgba(201,168,76,.15);color:var(--gold)}
@@ -94,19 +185,16 @@ color:#000;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:p
 
 def render(page, content, user=None):
     u = user if user is not None else session.get("user","")
-    # Build nav active states
     pages = ["dashboard","balance","ledger","receipts","issues","dealers","products","schedule"]
     nav_icons = {"dashboard":"📊 Dashboard","balance":"⚖ Balance","ledger":"📋 Ledger",
-                 "receipts":"⬇ Receipts","issues":"⬆ Issues","dealers":"🏪 Dealers",
-                 "products":"📦 Products","schedule":"🔔 Schedule"}
-    nav_html = ""
+        "receipts":"⬇ Receipts","issues":"⬆ Issues","dealers":"🏪 Dealers",
+        "products":"📦 Products","schedule":"🔔 Schedule"}
     if u:
         nav_links = "".join(f'<a href="/{p}" class={"active" if p==page else ""}>{nav_icons[p]}</a>' for p in pages)
         topbar = f'''<div class="topbar"><div><h1>✦ GOLD DEALER SYSTEM</h1><div class="sub">{u.upper()} &nbsp;|&nbsp; Read Only View</div></div><form method="post" action="/logout"><button class="logout">Logout</button></form></div><nav class="nav">{nav_links}</nav>'''
     else:
         topbar = ""
-    full_html = BASE.replace("%%TOPBAR%%", topbar).replace("%%CONTENT%%", content)
-    return Response(full_html, mimetype="text/html; charset=utf-8")
+    return Response(BASE.replace("%%TOPBAR%%", topbar).replace("%%CONTENT%%", content), mimetype="text/html; charset=utf-8")
 
 def login_req(f):
     from functools import wraps
@@ -128,14 +216,14 @@ def login():
         if row: session["user"]=u; session["role"]=row["role"]; return redirect("/dashboard")
         else: err="Invalid credentials"
     html=f"""<div class="login-wrap"><div class="login-box">
-    <h1>✦ Gold Dealer</h1>
-    <form method="post">
-    <div class="form-g"><label>USERNAME</label><input name="username" autocomplete="off"></div>
-    <div class="form-g"><label>PASSWORD</label><input type="password" name="password"></div>
-    <button class="btn">Login</button>
-    </form>
-    <div class="err">{err}</div>
-    </div></div>"""
+<h1>✦ Gold Dealer</h1>
+<form method="post">
+<div class="form-g"><label>USERNAME</label><input name="username" autocomplete="off"></div>
+<div class="form-g"><label>PASSWORD</label><input type="password" name="password"></div>
+<button class="btn">Login</button>
+</form>
+<div class="err">{err}</div>
+</div></div>"""
     return render("login", html, user="")
 
 @app.route("/logout", methods=["POST"])
@@ -160,16 +248,16 @@ def dashboard():
         bal_rows+=f"<tr><td>{d['dealer_code']}</td><td>{d['dealer_name']}</td><td class='{color}'>{g:,.3f}g</td></tr>"
     sync_txt=f"Last synced: {sync['synced_at']}" if sync else "Not synced yet"
     html=f"""<div class="wrap">
-    <div class="sync">{sync_txt}</div>
-    <div class="stats">
-      <div class="stat"><div class="val gold-c">{tr['c'] if tr else 0}</div><div class="lbl">Today's Receipts</div></div>
-      <div class="stat"><div class="val red-c">{ti['c'] if ti else 0}</div><div class="lbl">Today's Issues</div></div>
-      <div class="stat"><div class="val green-c">{tg['t']:.3f}g</div><div class="lbl">Today Pure Received</div></div>
-      <div class="stat"><div class="val gold-c">{len(dealers)}</div><div class="lbl">Active Dealers</div></div>
-    </div>
-    <div class="card"><div class="card-head">⚖ Dealer Gold Balances (Top 8)</div>
-    <div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Gold Balance</th></tr>{bal_rows}</table></div>
-    </div></div>"""
+<div class="sync">{sync_txt}</div>
+<div class="stats">
+<div class="stat"><div class="val gold-c">{tr['c'] if tr else 0}</div><div class="lbl">Today's Receipts</div></div>
+<div class="stat"><div class="val red-c">{ti['c'] if ti else 0}</div><div class="lbl">Today's Issues</div></div>
+<div class="stat"><div class="val green-c">{tg['t']:.3f}g</div><div class="lbl">Today Pure Received</div></div>
+<div class="stat"><div class="val gold-c">{len(dealers)}</div><div class="lbl">Active Dealers</div></div>
+</div>
+<div class="card"><div class="card-head">⚖ Dealer Gold Balances (Top 8)</div>
+<div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Gold Balance</th></tr>{bal_rows}</table></div>
+</div></div>"""
     return render("dashboard", html)
 
 @app.route("/balance")
@@ -189,13 +277,13 @@ def balance():
         rows+=f"<tr><td>{d['dealer_code']}</td><td>{d['dealer_name']}</td><td>{d['phone'] or '-'}</td><td class='{gc}'>{g:,.3f}</td><td>{s:,.3f}</td></tr>"
     rows+=f"<tr style='font-weight:700;background:#1a1a1a'><td colspan='3'>TOTAL</td><td class='gold-c'>{tg:,.3f}</td><td>{ts:,.3f}</td></tr>"
     html=f"""<div class="wrap">
-    <div class="stats">
-      <div class="stat"><div class="val gold-c">{tg:,.3f}g</div><div class="lbl">Total Gold Balance</div></div>
-      <div class="stat"><div class="val muted">{ts:,.3f}g</div><div class="lbl">Total Silver Balance</div></div>
-    </div>
-    <div class="card"><div class="card-head">⚖ All Dealer Balances</div>
-    <div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Phone</th><th>Gold Balance (g)</th><th>Silver Balance (g)</th></tr>{rows}</table></div>
-    </div></div>"""
+<div class="stats">
+<div class="stat"><div class="val gold-c">{tg:,.3f}g</div><div class="lbl">Total Gold Balance</div></div>
+<div class="stat"><div class="val muted">{ts:,.3f}g</div><div class="lbl">Total Silver Balance</div></div>
+</div>
+<div class="card"><div class="card-head">⚖ All Dealer Balances</div>
+<div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Phone</th><th>Gold Balance (g)</th><th>Silver Balance (g)</th></tr>{rows}</table></div>
+</div></div>"""
     return render("balance", html)
 
 @app.route("/ledger")
@@ -216,22 +304,16 @@ def ledger():
         for b in bills:
             tc="bg" if b["type"]=="Receipt" else "br"
             canc="canc" if b["cancelled"] else ""
-            rows+=f"""<tr class='{canc}'>
-                <td><a href='/bill?bill_no={b["bill_no"]}&type={b["type"]}'>{b["bill_no"]}</a></td>
-                <td>{b["bill_date"]}</td>
-                <td><span class='badge {tc}'>{b["type"]}</span></td>
-                <td>{b["items"]}</td>
-                <td>{b["total_pure"]:.3f}</td>
-                <td>{"Cancelled" if b["cancelled"] else "Active"}</td></tr>"""
+            rows+=f"""<tr class='{canc}'><td><a href='/bill?bill_no={b["bill_no"]}&type={b["type"]}'>{b["bill_no"]}</a></td><td>{b["bill_date"]}</td><td><span class='badge {tc}'>{b["type"]}</span></td><td>{b["items"]}</td><td>{b["total_pure"]:.3f}</td><td>{"Cancelled" if b["cancelled"] else "Active"}</td></tr>"""
         bills_html=f"""<div class="card"><div class="card-head">Bills</div>
-        <div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Type</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{rows}</table></div></div>"""
+<div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Type</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{rows}</table></div></div>"""
     html=f"""<div class="wrap">
-    <form method="get" style="margin-bottom:14px;display:flex;gap:10px;align-items:center">
-      <select name="dealer_id" style="background:#1a1a1a;border:1px solid #444;color:#f0ead6;padding:9px 12px;border-radius:8px;font-size:14px;flex:1">
-        <option value="">Select Dealer...</option>{dealer_opts}</select>
-      <button type="submit" style="padding:9px 20px;background:linear-gradient(135deg,#C9A84C,#E8C97A);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer">View</button>
-    </form>
-    {bills_html}</div>"""
+<form method="get" style="margin-bottom:14px;display:flex;gap:10px;align-items:center">
+<select name="dealer_id" style="background:#1a1a1a;border:1px solid #444;color:#f0ead6;padding:9px 12px;border-radius:8px;font-size:14px;flex:1">
+<option value="">Select Dealer...</option>{dealer_opts}</select>
+<button type="submit" style="padding:9px 20px;background:linear-gradient(135deg,#C9A84C,#E8C97A);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer">View</button>
+</form>
+{bills_html}</div>"""
     return render("ledger", html)
 
 @app.route("/bill")
@@ -251,13 +333,13 @@ def bill_detail():
         trs+=f"<tr class='{canc}'><td>{r['product_name']}</td><td>{r['metal']}</td><td>{r['gross_wt']:.3f}</td><td>{r['stone_wt']:.3f}</td><td>{r['net_wt']:.3f}</td><td>{r['touch']}</td><td>{r['pure_wt']:.3f}</td><td>{r['making_amt']:,.0f}</td><td>{r['other_amt']:,.0f}</td><td>{r['remarks'] or '-'}</td></tr>"
         if not r["cancelled"]: total+=r["pure_wt"]
     html=f"""<div class="wrap">
-    <a href="/ledger" style="font-size:13px;color:var(--gold)">← Back to Ledger</a>
-    <h2 style="color:var(--gold);margin:12px 0 4px">Bill: {bill_no} &nbsp;<span style="font-size:14px;color:var(--muted)">({btype})</span></h2>
-    <div class="card"><div class="scroll"><table>
-    <tr><th>Product</th><th>Metal</th><th>Gross</th><th>Stone</th><th>Net</th><th>Touch</th><th>Pure(g)</th><th>Making₹</th><th>Other₹</th><th>Remarks</th></tr>
-    {trs}</table></div></div>
-    <div style="text-align:right;color:var(--green);font-weight:700;font-size:16px">Total Pure: {total:.3f} g</div>
-    </div>"""
+<a href="/ledger" style="font-size:13px;color:var(--gold)">← Back to Ledger</a>
+<h2 style="color:var(--gold);margin:12px 0 4px">Bill: {bill_no} &nbsp;<span style="font-size:14px;color:var(--muted)">({btype})</span></h2>
+<div class="card"><div class="scroll"><table>
+<tr><th>Product</th><th>Metal</th><th>Gross</th><th>Stone</th><th>Net</th><th>Touch</th><th>Pure(g)</th><th>Making₹</th><th>Other₹</th><th>Remarks</th></tr>
+{trs}</table></div></div>
+<div style="text-align:right;color:var(--green);font-weight:700;font-size:16px">Total Pure: {total:.3f} g</div>
+</div>"""
     return render("ledger", html)
 
 @app.route("/receipts")
@@ -271,7 +353,7 @@ def receipts():
         canc="canc" if r["cancelled"] else ""
         trs+=f"<tr class='{canc}'><td><a href='/bill?bill_no={r['bill_no']}&type=Receipt'>{r['bill_no']}</a></td><td>{r['bill_date']}</td><td>{r['dealer_name']}</td><td>{r['items']}</td><td>{r['total_pure']:.3f}</td><td>{'Cancelled' if r['cancelled'] else 'Active'}</td></tr>"
     html=f"""<div class="wrap"><div class="card"><div class="card-head">⬇ Recent Receipts</div>
-    <div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Dealer</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{trs}</table></div></div></div>"""
+<div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Dealer</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{trs}</table></div></div></div>"""
     return render("receipts", html)
 
 @app.route("/issues")
@@ -285,7 +367,7 @@ def issues():
         canc="canc" if r["cancelled"] else ""
         trs+=f"<tr class='{canc}'><td><a href='/bill?bill_no={r['bill_no']}&type=Issue'>{r['bill_no']}</a></td><td>{r['bill_date']}</td><td>{r['dealer_name']}</td><td>{r['items']}</td><td>{r['total_pure']:.3f}</td><td>{'Cancelled' if r['cancelled'] else 'Active'}</td></tr>"
     html=f"""<div class="wrap"><div class="card"><div class="card-head">⬆ Recent Issues</div>
-    <div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Dealer</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{trs}</table></div></div></div>"""
+<div class="scroll"><table><tr><th>Bill No</th><th>Date</th><th>Dealer</th><th>Items</th><th>Pure (g)</th><th>Status</th></tr>{trs}</table></div></div></div>"""
     return render("issues", html)
 
 @app.route("/dealers")
@@ -303,7 +385,7 @@ def dealers():
         gc="green-c" if bal>=0 else "red-c"
         trs+=f"<tr><td>{d['dealer_code']}</td><td>{d['dealer_name']}</td><td>{d['phone'] or '-'}</td><td>{d['address'] or '-'}</td><td class='{gc}'>{bal:,.3f}g</td></tr>"
     html=f"""<div class="wrap"><div class="card"><div class="card-head">🏪 Dealers</div>
-    <div class="scroll"><table><tr><th>Code</th><th>Name</th><th>Phone</th><th>Address</th><th>Gold Balance</th></tr>{trs}</table></div></div></div>"""
+<div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Phone</th><th>Address</th><th>Gold Balance</th></tr>{trs}</table></div></div></div>"""
     return render("dealers", html)
 
 @app.route("/products")
@@ -312,7 +394,7 @@ def products():
     rows=query("SELECT * FROM products WHERE active=1 ORDER BY metal,product_code")
     trs="".join(f"<tr><td>{r['product_code']}</td><td>{r['product_name']}</td><td>{r['metal']}</td><td>{r['category']}</td><td>{r['default_touch']}</td></tr>" for r in rows)
     html=f"""<div class="wrap"><div class="card"><div class="card-head">📦 Products</div>
-    <div class="scroll"><table><tr><th>Code</th><th>Name</th><th>Metal</th><th>Category</th><th>Default Touch</th></tr>{trs}</table></div></div></div>"""
+<div class="scroll"><table><tr><th>Code</th><th>Name</th><th>Metal</th><th>Category</th><th>Default Touch</th></tr>{trs}</table></div></div></div>"""
     return render("products", html)
 
 @app.route("/schedule")
@@ -332,9 +414,8 @@ def schedule():
         days_txt=f"{diff} days" if diff is not None else "-"
         trs+=f"<tr><td>{r['dealer_code']}</td><td>{r['dealer_name']}</td><td>{r['phone'] or '-'}</td><td>{r['next_due_date'] or '-'}</td><td class='{color}'>{days_txt}</td><td>{r['notes'] or '-'}</td></tr>"
     html=f"""<div class="wrap"><div class="card"><div class="card-head">🔔 Payment Schedule</div>
-    <div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Phone</th><th>Next Due</th><th>Days Left</th><th>Notes</th></tr>{trs}</table></div></div></div>"""
+<div class="scroll"><table><tr><th>Code</th><th>Dealer</th><th>Phone</th><th>Next Due</th><th>Days Left</th><th>Notes</th></tr>{trs}</table></div></div></div>"""
     return render("schedule", html)
-
 
 @app.route("/debug")
 def debug():
@@ -352,6 +433,9 @@ def debug():
     env_host = os.environ.get("MYSQLHOST","NOT SET")
     env_db = os.environ.get("MYSQLDATABASE","NOT SET")
     return f"<pre>HOST: {env_host}\nDB: {env_db}\n\n{info}</pre>"
+
+# Initialize DB on startup
+init_db()
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5050)), debug=False)
