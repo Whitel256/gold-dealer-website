@@ -2,7 +2,7 @@
 Gold Dealer - Read Only Public Website
 Deploy on Railway
 """
-from flask import Flask, render_template_string, request, redirect, session
+from flask import Flask, render_template_string, request, redirect, session, Response
 import os, mysql.connector
 from datetime import date
 
@@ -108,7 +108,8 @@ color:#000;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:p
 </body></html>"""
 
 def render(page, content, user=None):
-    return render_template_string(BASE, page=page, content=content, user=user or session.get("user",""))
+    html = render_template_string(BASE, page=page, content=content, user=user or session.get("user",""))
+    return Response(html, mimetype="text/html")
 
 def login_req(f):
     from functools import wraps
