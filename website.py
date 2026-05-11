@@ -340,9 +340,15 @@ def schedule():
 def debug():
     try:
         rows = query("SELECT username, LEFT(password,10) as pw_start FROM users LIMIT 5")
-        info = f"Users found: {len(rows)}<br>" + "<br>".join(f"{r['username']}: {r['pw_start']}..." for r in rows)
+        import hashlib; test_hash = hashlib.sha256("admin123".encode()).hexdigest()
+        info = f"Users found: {len(rows)}<br>" + "<br>".join(f"{r['username']}: {r['pw_start']}..." for r in rows) + f"<br><br>Expected hash start: {test_hash[:10]}"
     except Exception as e:
         info = f"DB Error: {e}"
+    try:
+        tables = query("SHOW TABLES")
+        info += f"<br>Tables: {[list(r.values())[0] for r in tables]}"
+    except Exception as e2:
+        info += f"<br>Tables error: {e2}"
     env_host = os.environ.get("MYSQLHOST","NOT SET")
     env_db = os.environ.get("MYSQLDATABASE","NOT SET")
     return f"<pre>HOST: {env_host}\nDB: {env_db}\n\n{info}</pre>"
